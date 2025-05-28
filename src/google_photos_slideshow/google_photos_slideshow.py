@@ -306,8 +306,7 @@ class Slideshow(ABC):
             if (time.time() - self.last_refresh) > self.refresh_interval:
                 try:
                     urls = await self._fetch_urls()
-                    await self._record_urls(urls)
-                except:
+                    await self._record_urls(urls)                except:
                     logger.warning(f"Failed to fetch urls")
 
     def launch(self):
@@ -326,7 +325,12 @@ class Slideshow(ABC):
     async def serve_index(self, request):
         """Serve the index.html file."""
         index_path = Path(__file__).parent / 'index.html'
-        return web.FileResponse(index_path)
+        response = web.FileResponse(index_path)
+        # Add no-cache headers to prevent browser caching
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
 
     def setup_routes(self, app):
         app.router.add_get('/', self.serve_index)

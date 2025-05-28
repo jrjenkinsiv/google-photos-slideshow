@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <title>Google Photos Slideshow</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <!-- QRCode library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
         /* Global Styles */
         body, html {
@@ -120,12 +117,18 @@
         }
 
     </style>
+    <!-- QRCode library (must be loaded before main script) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </head>
-<body>
-    <!-- QR code overlay -->
-    <div id="qr-overlay" class="hidden" style="position:fixed; bottom:1em; right:1em; background:rgba(0,0,0,0.7); padding:0.5em; border-radius:0.5em; z-index:1000;">
-        <div id="qr-code"></div>
+<body>    <!-- QR code overlay -->
+    <div id="qr-overlay" class="hidden" style="position:fixed; bottom:1em; right:1em; background:rgba(255,255,255,0.95); padding:1em; border-radius:0.5em; z-index:1000; border: 2px solid #333;">
+        <div id="qr-code" style="display: flex; flex-direction: column; align-items: center;">
+            <div style="color: #333; font-size: 0.8em; margin-bottom: 0.5em; text-align: center;">Scan to open on your device</div>
+        </div>
     </div>
+    <!-- TEST: This should appear in the browser to confirm the updated file is being served -->
+    <div id="version-test" style="position:fixed; top:10px; left:10px; background:red; color:white; padding:5px; z-index:9999;">v2.0 - QR CODE ENABLED</div>
     <a id="source" target="_blank"  class="external-link"></a>
     <div id="container">
         <img id="slideshow" src="" alt="Slideshow Image">
@@ -145,49 +148,13 @@
             </div>
 
         </div>
-        <button id="fullscreen-toggle" onclick="toggleFullscreen()"><i class="fas fa-expand"></i></button>
+        <button id="fullscreen-toggle" onclick="slideshow.toggleFullscreen()"><i class="fas fa-expand"></i></button>
         <button id="castButton" is="google-cast-button" style="height:2.5em"></button>
         <!-- QR code toggle button -->
         <button id="qr-button" onclick="slideshow.toggleQRCode()" title="Show QR Code"><i class="fas fa-qrcode"></i></button>
     </div>
-
-
     <script>
-        // Ensure the Cast SDK is loaded
-if (window.cast && chrome.cast && chrome.cast.isAvailable) {
-    initializeCastApi();
-} else {
-    window.__onGCastApiAvailable = function(isAvailable) {
-        if (isAvailable) {
-            initializeCastApi();
-        }
-    };
-}
-
-function initializeCastApi() {
-    window.cast.framework.CastContext.getInstance().setOptions({
-        receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-    });
-
-    const castButton = document.getElementById('castButton');
-    if (castButton) {
-        castButton.addEventListener('click', function() {
-            const castSession = window.cast.framework.CastContext.getInstance().getCurrentSession();
-            if (!castSession) {
-                window.cast.framework.CastContext.getInstance().requestSession().catch(function(error) {
-                    console.error('Error requesting cast session:', error);
-                });
-            }
-        });
-    } else {
-        console.error('Cast button not found');
-    }
-}
-
-
-
-
+    document.addEventListener('DOMContentLoaded', function() {
         class Slideshow{
             constructor(ws){
                 this.ws = ws;
@@ -223,10 +190,10 @@ function initializeCastApi() {
                 this.closeDropdown = this.closeDropdown.bind(this);
                 this.fadeIn = this.fadeIn.bind(this);
                 this.setUrl = this.setUrl.bind(this);
-                this.toggleFullscreen = this.toggleFullscreen.bind(this);
-                this.onFullscreenChange = this.onFullscreenChange.bind(this);
+                this.toggleFullscreen = this.toggleFullscreen.bind(this);                this.onFullscreenChange = this.onFullscreenChange.bind(this);
                 this.onKeydown = this.onKeydown.bind(this);
                 this.castMedia = this.castMedia.bind(this);
+                this.toggleQRCode = this.toggleQRCode.bind(this);
 
 
                 this.fullscreenToggleEl.addEventListener('click', this.toggleFullscreen);
@@ -354,43 +321,82 @@ function initializeCastApi() {
                 } else {
                     this.fullscreenToggleEl.innerHTML = '<i class="fas fa-expand"></i>'; // Change back to expand icon when not in fullscreen
                 }
-            }
-
-            onKeydown(event) {
+            }            onKeydown(event) {
                 if (event.key === "Escape" && document.fullscreenElement) {
                     document.exitFullscreen();
                 }
-           }
-
-
-        }
-
-        let ws = new WebSocket("ws://" + location.hostname + ":6789/");
-        let slideshow = new Slideshow(ws);
-
-        // QR code toggle logic
-        Slideshow.prototype.toggleQRCode = function() {
-            const overlay = document.getElementById('qr-overlay');
-            if (overlay.classList.contains('hidden')) {
-                // generate QR code if not exists
-                if (!this.qrGenerated) {
-                    const qrContainer = document.getElementById('qr-code');
-                    qrContainer.innerHTML = '';
-                    new QRCode(qrContainer, {
-                        text: this.sourceEl.href || this.sourceEl.textContent,
-                        width: 120,
-                        height: 120,
-                        colorDark: '#fff',
-                        colorLight: '#000'
-                    });
-                    this.qrGenerated = true;
+            }            // QR code toggle logic
+            toggleQRCode() {
+                console.log('toggleQRCode method called!');
+                const overlay = document.getElementById('qr-overlay');
+                const qrDiv = document.getElementById('qr-code');
+                
+                console.log('overlay element:', overlay);
+                console.log('qrDiv element:', qrDiv);
+                console.log('overlay has hidden class:', overlay.classList.contains('hidden'));
+                
+                if (overlay.classList.contains('hidden')) {
+                    console.log('Showing QR code overlay');
+                    overlay.classList.remove('hidden');
+                    
+                    // Clear any existing QR code
+                    const qrContainer = qrDiv.querySelector('.qr-container');
+                    if (qrContainer) {
+                        qrContainer.remove();
+                    }
+                    
+                    const url = window.location.href;
+                    console.log('Current URL for QR code:', url);
+                    
+                    if (typeof QRCode === 'undefined') {
+                        console.error('QRCode library not loaded');
+                        const errorDiv = document.createElement('div');
+                        errorDiv.innerHTML = '<span style="color:#cc0000">QR code library failed to load.</span>';
+                        qrDiv.appendChild(errorDiv);
+                    } else {
+                        console.log('QRCode library is available, generating QR code');
+                        // Create a container for the QR code
+                        const qrContainer = document.createElement('div');
+                        qrContainer.className = 'qr-container';
+                        qrContainer.style.backgroundColor = 'white';
+                        qrContainer.style.padding = '8px';
+                        qrContainer.style.borderRadius = '4px';
+                        qrContainer.style.display = 'block';
+                        qrDiv.appendChild(qrContainer);
+                        
+                        setTimeout(function() {
+                            try {
+                                new QRCode(qrContainer, {
+                                    text: url,
+                                    width: 128,
+                                    height: 128,
+                                    colorDark: '#000000',
+                                    colorLight: '#ffffff',
+                                    correctLevel: QRCode.CorrectLevel.H
+                                });
+                                console.log('QR code generated successfully for URL:', url);
+                            } catch (error) {
+                                console.error('Error generating QR code:', error);
+                                qrContainer.innerHTML = '<span style="color:#cc0000; padding: 1em;">Error generating QR code</span>';
+                            }
+                        }, 50);
+                    }
+                } else {
+                    console.log('Hiding QR code overlay');
+                    overlay.classList.add('hidden');
+                    // Clear QR code content
+                    const qrContainer = qrDiv.querySelector('.qr-container');
+                    if (qrContainer) {
+                        qrContainer.remove();
+                    }
                 }
-                overlay.classList.remove('hidden');
-            } else {
-                overlay.classList.add('hidden');
+                console.log('toggleQRCode finished, overlay visible:', !overlay.classList.contains('hidden'));
             }
-        };
-    </script>
 
+
+        }        let ws = new WebSocket("ws://" + location.hostname + ":6789/");
+        let slideshow = new Slideshow(ws);
+    });
+    </script>
 </body>
 </html>
