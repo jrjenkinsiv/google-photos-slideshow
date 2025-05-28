@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Google Photos Slideshow</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <!-- QRCode library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
         /* Global Styles */
@@ -120,6 +122,10 @@
     </style>
 </head>
 <body>
+    <!-- QR code overlay -->
+    <div id="qr-overlay" class="hidden" style="position:fixed; bottom:1em; right:1em; background:rgba(0,0,0,0.7); padding:0.5em; border-radius:0.5em; z-index:1000;">
+        <div id="qr-code"></div>
+    </div>
     <a id="source" target="_blank"  class="external-link"></a>
     <div id="container">
         <img id="slideshow" src="" alt="Slideshow Image">
@@ -141,7 +147,8 @@
         </div>
         <button id="fullscreen-toggle" onclick="toggleFullscreen()"><i class="fas fa-expand"></i></button>
         <button id="castButton" is="google-cast-button" style="height:2.5em"></button>
-
+        <!-- QR code toggle button -->
+        <button id="qr-button" onclick="slideshow.toggleQRCode()" title="Show QR Code"><i class="fas fa-qrcode"></i></button>
     </div>
 
 
@@ -353,13 +360,36 @@ function initializeCastApi() {
                 if (event.key === "Escape" && document.fullscreenElement) {
                     document.exitFullscreen();
                 }
-            }
+           }
 
 
         }
 
         let ws = new WebSocket("ws://" + location.hostname + ":6789/");
         let slideshow = new Slideshow(ws);
+
+        // QR code toggle logic
+        Slideshow.prototype.toggleQRCode = function() {
+            const overlay = document.getElementById('qr-overlay');
+            if (overlay.classList.contains('hidden')) {
+                // generate QR code if not exists
+                if (!this.qrGenerated) {
+                    const qrContainer = document.getElementById('qr-code');
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, {
+                        text: this.sourceEl.href || this.sourceEl.textContent,
+                        width: 120,
+                        height: 120,
+                        colorDark: '#fff',
+                        colorLight: '#000'
+                    });
+                    this.qrGenerated = true;
+                }
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        };
     </script>
 
 </body>

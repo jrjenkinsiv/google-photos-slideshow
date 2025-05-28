@@ -257,36 +257,41 @@ class Slideshow(ABC):
 
     async def websocket_handler(self, websocket):
         """Handle incoming websocket connections"""
-        await self._register(websocket)
         try:
-            async for message in websocket:
-                data = json.loads(message)
-                if data['action'] == 'next':
-                    logger.info("next")
-                    current_url = await self._next_url()
-                    await self._send_to_all(await self._url_package(current_url))
-                elif data['action'] == 'previous':
-                    logger.info("previous")
-                    current_url = await self._previous_url()
-                    await self._send_to_all(await self._url_package(current_url))
-                elif data['action'] == 'pause':
-                    if not self.paused:
-                        self.paused = True
-                        logger.warning("pause")
-                        await self._send_to_all(json.dumps({'action': 'pause'}))
-                elif data['action'] == 'play':
-                    if self.paused:
-                        self.paused = False
-                        logger.warning("play")
-                        await self._send_to_all(json.dumps({'action': 'play'}))
-                elif data['action'] == 'speed':
-                    if self.speed != float(data['value']):
-                        self.image_duration = 4/float(data['value'])
-                        self.speed = float(data['value'])
-                        logger.warning(f"speed changed to {self.speed} ({self.image_duration}s)")
-                        await self._send_to_all(json.dumps({'action': 'speed', 'speed': self.speed}))
-        finally:
-            await self._unregister(websocket)
+            await self._register(websocket)
+            try:
+                async for message in websocket:
+                    data = json.loads(message)
+                    if data['action'] == 'next':
+                        logger.info("next")
+                        current_url = await self._next_url()
+                        await self._send_to_all(await self._url_package(current_url))
+                    elif data['action'] == 'previous':
+                        logger.info("previous")
+                        current_url = await self._previous_url()
+                        await self._send_to_all(await self._url_package(current_url))
+                    elif data['action'] == 'pause':
+                        if not self.paused:
+                            self.paused = True
+                            logger.warning("pause")
+                            await self._send_to_all(json.dumps({'action': 'pause'}))
+                    elif data['action'] == 'play':
+                        if self.paused:
+                            self.paused = False
+                            logger.warning("play")
+                            await self._send_to_all(json.dumps({'action': 'play'}))
+                    elif data['action'] == 'speed':
+                        if self.speed != float(data['value']):
+                            self.image_duration = 4/float(data['value'])
+                            self.speed = float(data['value'])
+                            logger.warning(f"speed changed to {self.speed} ({self.image_duration}s)")
+                            await self._send_to_all(json.dumps({'action': 'speed', 'speed': self.speed}))
+            except (websockets.exceptions.ConnectionClosedError, ConnectionResetError, OSError):
+                logger.info("WebSocket client disconnected.")
+            finally:
+                await self._unregister(websocket)
+        except Exception as e:
+            logger.error(f"websocket_handler error: {e}")
         await asyncio.sleep(0.1)
 
     async def run(self):
@@ -336,9 +341,44 @@ class Slideshow(ABC):
 
     @property
     def server_ip_url(self):
-        local_ip = socket.gethostbyname(socket.gethostname())
+        # Get the actual local IP that can connect to the internet
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Connect to a public DNS server to determine local IP
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+        except Exception:
+            # Fallback to the old method
+            local_ip = socket.gethostbyname(socket.gethostname())
+        finally:
+            s.close()
         p = f":{self.port}" if self.port != 80 else ""
         return f"http://{local_ip}{p}"
+
+    @property
+    def all_local_ips(self):
+        # Return a list of all local IPv4 addresses
+        import socket
+        ips = set()
+        try:
+            hostname = socket.gethostname()
+            for info in socket.getaddrinfo(hostname, None):
+                if info[0] == socket.AF_INET:
+                    ips.add(info[4][0])
+        except Exception:
+            pass
+        # Also try to get the main outbound IP
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            ips.add(s.getsockname()[0])
+            s.close()
+        except Exception:
+            pass
+        # Remove localhost and 0.0.0.0
+        ips = {ip for ip in ips if not ip.startswith('127.') and ip != '0.0.0.0'}
+        return sorted(ips)
 
     async def start_http_server(self):
         """Start the aiohttp server to serve the index.html."""
@@ -353,7 +393,22 @@ class Slideshow(ABC):
         s = self.server_url.replace("0.0.0.0", "localhost")
         logger.warning(f"Open your browser and go to {s} if you are on this computer")
 
-        logger.warning(f"Or go to {self.server_ip_url} from another device on the same network (may or may not work depending on your firewall settings)")
+        # Print all local IPs for user (with extra debug info)
+        ip_list = self.all_local_ips
+        if ip_list:
+            logger.warning(f"Or go to any of these from another device on the same network:")
+            for ip in ip_list:
+                logger.warning(f"  http://{ip}{':' + str(self.port) if self.port != 80 else ''}")
+        else:
+            logger.warning(f"Or go to {self.server_ip_url} from another device on the same network (may or may not work depending on your firewall settings)")
+
+        # Extra: print all network interfaces and their IPs for debugging
+        import psutil
+        logger.warning("Network interfaces and their IPv4 addresses:")
+        for iface, addrs in psutil.net_if_addrs().items():
+            for addr in addrs:
+                if addr.family == socket.AF_INET:
+                    logger.warning(f"  {iface}: {addr.address}")
 
         logger.warning(f"Ctrl + C to stop the server (or close the terminal)")
 
@@ -397,7 +452,8 @@ class URLListSlideshow(Slideshow):
         if isinstance(urls, str) and Path(urls).exists():
             urls = Path(urls).read_text().splitlines()
             urls = [v.strip() for v in urls]
-        super().__init__(title=title, image_duration=image_duration, refresh_interval=refresh_interval,
+        super().__init__(source=str(urls),  # Add source parameter here
+                         title=title, image_duration=image_duration, refresh_interval=refresh_interval,
                          host=host, websocket_port=websocket_port, port=port,
                          support_casting=support_casting,
                          static_folder=static_folder,
@@ -421,7 +477,11 @@ class URLListSlideshow(Slideshow):
         # start the slideshow
         d, cfg = cls.get_args()
         if not d['urls']:
-            d['urls'] = [v.strip() for v in input("Enter the urls to display separated by commas: ").split(",")]
+            user_input = input("Enter the urls to display separated by commas: ")
+            if user_input is None:
+                d['urls'] = []
+            else:
+                d['urls'] = [v.strip() for v in user_input.split(",")]
         cls.save_cfg(d, cfg)
         s = cls(**d)
         s.serve()
@@ -666,13 +726,17 @@ class GooglePhotosSlideshow(RegexSlideshow):
     """)
 
             m = input(f'📋🔗 Enter the google photos album link you copied (or Enter ⏎ to go there 🌐↗️): ')
-            mtest = m.strip().lower()
+            if m is None:
+                m = ""
+            mtest = m.strip().lower() if m else ""
             if mtest == "o" or not mtest:
                 import webbrowser
                 webbrowser.open("https://photos.google.com/albums")
                 m = input(f'📋🔗 Enter the google photos album link you copied: ')
-            m = m.strip().replace('"', '').replace("'", '')
-            if not m.startswith("http"):
+                if m is None:
+                    m = ""
+            m = m.strip().replace('"', '').replace("'", '') if m else ""
+            if m and not m.startswith("http"):
                 m = "https://" + m
 
             print("")
@@ -699,9 +763,13 @@ def main(mode=None, support_tk=True):
         if cfg.exists():
             mode = yaml.safe_load(cfg.read_text()).get('mode', None)
     if mode is None:
-        mode = input("Enter the mode to use (base, urls, folder, regex, google_photos): [google_photos]").strip()
-        if not mode:
+        user_input = input("Enter the mode to use (base, urls, folder, regex, google_photos): [google_photos]")
+        if user_input is None:
             mode = "google_photos"
+        else:
+            mode = user_input.strip()
+            if not mode:
+                mode = "google_photos"
     if mode not in ["base", "urls", "folder", "regex", "google_photos"]:
         raise ValueError(f"Invalid mode: {mode}")
     classes = [Slideshow, GooglePhotosSlideshow, URLListSlideshow, FolderSlideshow, RegexSlideshow]
@@ -712,4 +780,4 @@ def main(mode=None, support_tk=True):
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
