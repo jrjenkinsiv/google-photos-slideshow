@@ -376,6 +376,15 @@ class Slideshow(ABC):
             s.close()
         except Exception:
             pass
+        # Try using all network interfaces
+        import psutil
+        try:
+            for iface, addrs in psutil.net_if_addrs().items():
+                for addr in addrs:
+                    if addr.family == socket.AF_INET:
+                        ips.add(addr.address)
+        except Exception:
+            pass
         # Remove localhost and 0.0.0.0
         ips = {ip for ip in ips if not ip.startswith('127.') and ip != '0.0.0.0'}
         return sorted(ips)
@@ -397,7 +406,36 @@ class Slideshow(ABC):
         ip_list = self.all_local_ips
         if ip_list:
             logger.warning(f"Or go to any of these from another device on the same network:")
+            # Group IPs by their first octet to better organize the display
+            private_ips = []
+            docker_ips = []
+            other_ips = []
+            
             for ip in ip_list:
+                if ip.startswith('192.168.'):
+                    private_ips.append(ip)  # Home/office network IPs
+                elif ip.startswith('10.'):
+                    if ip.startswith('10.0.') or ip.startswith('10.1.'):
+                        docker_ips.append(ip)  # Likely container/VM IPs
+                    else:
+                        private_ips.append(ip)  # Could be real local IPs
+                elif ip.startswith('172.'):
+                    second_octet = int(ip.split('.')[1])
+                    if 16 <= second_octet <= 31:
+                        docker_ips.append(ip)  # Docker range
+                    else:
+                        private_ips.append(ip)
+                else:
+                    other_ips.append(ip)  # Public IPs or other private ranges
+            
+            # Print the most likely useful IPs first
+            for ip in private_ips:
+                logger.warning(f"  http://{ip}{':' + str(self.port) if self.port != 80 else ''}")
+            
+            for ip in other_ips:
+                logger.warning(f"  http://{ip}{':' + str(self.port) if self.port != 80 else ''}")
+                
+            for ip in docker_ips:
                 logger.warning(f"  http://{ip}{':' + str(self.port) if self.port != 80 else ''}")
         else:
             logger.warning(f"Or go to {self.server_ip_url} from another device on the same network (may or may not work depending on your firewall settings)")
