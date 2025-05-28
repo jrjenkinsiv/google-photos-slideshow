@@ -306,7 +306,8 @@ class Slideshow(ABC):
             if (time.time() - self.last_refresh) > self.refresh_interval:
                 try:
                     urls = await self._fetch_urls()
-                    await self._record_urls(urls)                except:
+                    await self._record_urls(urls)
+                except:
                     logger.warning(f"Failed to fetch urls")
 
     def launch(self):

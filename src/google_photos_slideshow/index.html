@@ -106,9 +106,7 @@
         /* Utility Classes */
         .hidden {
             display: none;
-        }
-
-        .external-link::after {
+        }        .external-link::after {
             content: '\f35d'; /* This is the Unicode for Font Awesome's external link icon */
             font-family: 'Font Awesome 5 Free'; /* Specify the font family */
             font-weight: 900; /* Font Awesome 5 requires this for solid icons */
@@ -116,19 +114,23 @@
             font-size: 0.75em; /* Adjust the size of the icon */
         }
 
-    </style>
-    <!-- QRCode library (must be loaded before main script) -->
+        .hidden {
+            display: none !important;
+        }
+
+    </style>    <!-- QRCode library (must be loaded before main script) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </head>
-<body>    <!-- QR code overlay -->
+<body>
+    <!-- QR code overlay -->
     <div id="qr-overlay" class="hidden" style="position:fixed; bottom:1em; right:1em; background:rgba(255,255,255,0.95); padding:1em; border-radius:0.5em; z-index:1000; border: 2px solid #333;">
         <div id="qr-code" style="display: flex; flex-direction: column; align-items: center;">
             <div style="color: #333; font-size: 0.8em; margin-bottom: 0.5em; text-align: center;">Scan to open on your device</div>
         </div>
     </div>
     <!-- TEST: This should appear in the browser to confirm the updated file is being served -->
-    <div id="version-test" style="position:fixed; top:10px; left:10px; background:red; color:white; padding:5px; z-index:9999;">v2.0 - QR CODE ENABLED</div>
+    <!-- (REMOVED v2.0 version indicator) -->
     <a id="source" target="_blank"  class="external-link"></a>
     <div id="container">
         <img id="slideshow" src="" alt="Slideshow Image">
@@ -155,6 +157,13 @@
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Try to set window.source from config if available
+        fetch('config.yaml').then(r => r.text()).then(text => {
+            const urlMatch = text.match(/url:\s*['"]?([^'"\n\r]+)['"]?/);
+            if (urlMatch && urlMatch[1]) {
+                window.source = urlMatch[1].trim();
+            }
+        }).catch(() => {});
         class Slideshow{
             constructor(ws){
                 this.ws = ws;
@@ -178,6 +187,8 @@
                     document.head.appendChild(faviconLink);
                 }
                 this.faviconEl = faviconLink;
+
+                this.albumUrl = null; // Initialize albumUrl
 
                 this.updateFavicon = this.updateFavicon.bind(this);
                 this.action = this.action.bind(this);
@@ -218,6 +229,7 @@
                     this.sourceEl.innerHTML = data.title;
                 } else if (data.action === 'source'){
                     this.sourceEl.href = data.source;
+                    this.albumUrl = data.source; // Store the album URL
                 }else{
                     this.setUrl(data.url, data['content-type']);
                 }
@@ -307,12 +319,28 @@
             }
 
             toggleFullscreen() {
+                // Fullscreen the main image container for best effect
+                const container = document.getElementById('container');
                 if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.error(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
-                    });
-                } else if (document.exitFullscreen) {
-                    document.exitFullscreen();
+                    if (container.requestFullscreen) {
+                        container.requestFullscreen();
+                    } else if (container.mozRequestFullScreen) {
+                        container.mozRequestFullScreen();
+                    } else if (container.webkitRequestFullscreen) {
+                        container.webkitRequestFullscreen();
+                    } else if (container.msRequestFullscreen) {
+                        container.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        document.mozCancelFullScreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
                 }
             }
             onFullscreenChange() {
@@ -327,75 +355,42 @@
                 }
             }            // QR code toggle logic
             toggleQRCode() {
-                console.log('toggleQRCode method called!');
                 const overlay = document.getElementById('qr-overlay');
-                const qrDiv = document.getElementById('qr-code');
-                
-                console.log('overlay element:', overlay);
-                console.log('qrDiv element:', qrDiv);
-                console.log('overlay has hidden class:', overlay.classList.contains('hidden'));
-                
-                if (overlay.classList.contains('hidden')) {
-                    console.log('Showing QR code overlay');
-                    overlay.classList.remove('hidden');
-                    
-                    // Clear any existing QR code
-                    const qrContainer = qrDiv.querySelector('.qr-container');
-                    if (qrContainer) {
-                        qrContainer.remove();
+                const qrContainer = document.getElementById('qr-code');
+                if (!overlay || !qrContainer) return;
+                overlay.classList.toggle('hidden');
+                if (!overlay.classList.contains('hidden')) {
+                    qrContainer.querySelectorAll('canvas, img').forEach(e => e.remove());
+                    // Try all possible sources for the album URL
+                    let albumUrl = null;
+                    if (window.slideshow && window.slideshow.albumUrl && typeof window.slideshow.albumUrl === 'string' && window.slideshow.albumUrl.startsWith('http')) {
+                        albumUrl = window.slideshow.albumUrl; // Prioritize albumUrl from WebSocket
+                    } else if (window.source && typeof window.source === 'string' && window.source.startsWith('http')) {
+                        albumUrl = window.source; // Fallback to source from config.yaml
                     }
-                    
-                    const url = window.location.href;
-                    console.log('Current URL for QR code:', url);
-                    
-                    if (typeof QRCode === 'undefined') {
-                        console.error('QRCode library not loaded');
-                        const errorDiv = document.createElement('div');
-                        errorDiv.innerHTML = '<span style="color:#cc0000">QR code library failed to load.</span>';
-                        qrDiv.appendChild(errorDiv);
-                    } else {
-                        console.log('QRCode library is available, generating QR code');
-                        // Create a container for the QR code
-                        const qrContainer = document.createElement('div');
-                        qrContainer.className = 'qr-container';
-                        qrContainer.style.backgroundColor = 'white';
-                        qrContainer.style.padding = '8px';
-                        qrContainer.style.borderRadius = '4px';
-                        qrContainer.style.display = 'block';
-                        qrDiv.appendChild(qrContainer);
-                        
-                        setTimeout(function() {
-                            try {
-                                new QRCode(qrContainer, {
-                                    text: url,
-                                    width: 128,
-                                    height: 128,
-                                    colorDark: '#000000',
-                                    colorLight: '#ffffff',
-                                    correctLevel: QRCode.CorrectLevel.H
-                                });
-                                console.log('QR code generated successfully for URL:', url);
-                            } catch (error) {
-                                console.error('Error generating QR code:', error);
-                                qrContainer.innerHTML = '<span style="color:#cc0000; padding: 1em;">Error generating QR code</span>';
-                            }
-                        }, 50);
+
+                    if (!albumUrl) {
+                        qrContainer.innerHTML = '<div style="color:#333; font-size:0.9em;">No album link available</div>';
+                        return;
                     }
+                    if (typeof QRCode === 'undefined') return;
+                    new QRCode(qrContainer, {
+                        text: albumUrl,
+                        width: 200,
+                        height: 200,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
                 } else {
-                    console.log('Hiding QR code overlay');
-                    overlay.classList.add('hidden');
-                    // Clear QR code content
-                    const qrContainer = qrDiv.querySelector('.qr-container');
-                    if (qrContainer) {
-                        qrContainer.remove();
-                    }
+                    qrContainer.querySelectorAll('canvas, img').forEach(e => e.remove());
                 }
-                console.log('toggleQRCode finished, overlay visible:', !overlay.classList.contains('hidden'));
             }
 
 
         }        let ws = new WebSocket("ws://" + location.hostname + ":6789/");
         let slideshow = new Slideshow(ws);
+        window.slideshow = slideshow;
     });
     </script>
 </body>
