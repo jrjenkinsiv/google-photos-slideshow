@@ -34,14 +34,60 @@
             object-fit: contain; /* Fit the image within the container without cropping */
             opacity: 0; /* Start fully transparent */
             transition: opacity 0.5s ease-in-out; /* Short transition effect for opacity */
-        }
-
-        #controls {
+        }        #controls {
             margin-top: 3em;
             display: flex; /* Use flexbox to layout child elements */
             justify-content: center; /* Center children horizontally */
             align-items: center; /* Center children vertically */
             gap: 1em; /* Add some space between controls */
+            opacity: 0.2; /* 50% transparency in standard view */
+            transition: opacity 0.3s ease-in-out; /* Smooth transition for opacity changes */
+            transform: scale(1.2); /* Make controls 20% larger */
+            transform-origin: center; /* Scale from center */
+        }
+
+        #controls:hover {
+            opacity: 1; /* Full opacity on hover */
+        }        /* Fullscreen-specific styles */
+        body.fullscreen-mode #controls {
+            position: fixed !important;
+            top: 50% !important;
+            left: 1em !important;
+            transform: translateY(-50%) scale(1.2) !important;
+            opacity: 0.5 !important;
+            z-index: 10000 !important;
+            background: rgba(0, 0, 0, 0.5) !important; /* More visible background */
+            border-radius: 0.5em !important;
+            padding: 0.8em !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1em !important;
+        }
+
+        body.fullscreen-mode #controls.fade-out {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        body.fullscreen-mode #controls:hover {
+            opacity: 1 !important; /* Full opacity on hover even in fullscreen */
+        }
+
+        /* Fallback for different fullscreen implementations */
+        body:-webkit-full-screen #controls,
+        body:-moz-full-screen #controls,
+        body:fullscreen #controls {
+            position: fixed !important;
+            bottom: 3em !important;  /* moved up to avoid QR overlap */
+            left: 50% !important;
+            transform: translateX(-50%) scale(1.2) !important;
+            margin-top: 0 !important;
+            opacity: 0.5 !important;
+            z-index: 10000 !important;
+            background: rgba(0, 0, 0, 0.5) !important;
+            border-radius: 0.5em !important;
+            padding: 0.8em !important;
+            display: flex !important;
         }
 
         #controls button {
@@ -118,43 +164,118 @@
             display: none !important;
         }
 
+        /* Source link styling */
+        #source {
+            position: absolute;
+            top: 1em;
+            left: 1em;
+            font-size: 0.75em;
+            color: rgba(255, 255, 255, 0.7) !important;
+            opacity: 0.6;
+            transition: opacity 0.3s ease-in-out;
+            z-index: 1000;
+        }
+        #source.hidden {
+            display: none !important;
+        }
+
+        /* QR code overlay styling */
+        #slideshow-wrapper {
+            position: relative;
+        }
+        #qr-overlay {
+            position: absolute;
+            bottom: 1em;
+            right: 1em;
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            z-index: 1000;
+            opacity: 1 !important;
+            transition: none !important;
+            transform: none !important;
+        }
+        /* QR container styling */
+        #qr-code {
+            width: 160px !important;   /* 20% smaller */
+            height: 160px !important;
+        }
+        /* Ensure container and slideshow fill fullscreen */
+        body.fullscreen-mode #container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Override controls positioning in fullscreen (side above QR code) */
+        body.fullscreen-mode #controls {
+            top: 50% !important;
+            left: 1em !important;
+            right: auto !important;
+            bottom: auto !important;
+            transform: translateY(-50%) scale(1.2) !important;
+            opacity: 0.5 !important;
+            z-index: 10000 !important;
+            background: rgba(0, 0, 0, 0.5) !important;
+            border-radius: 0.5em !important;
+            padding: 0.8em !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1em !important;
+        }
+
+        /* QR overlay background in fullscreen */
+        body.fullscreen-mode #qr-overlay {
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            transition: none !important;
+            transform: none !important;
+        }
+        /* Ensure QR code container stays fully opaque */
+        body.fullscreen-mode #qr-overlay #qr-code {
+            opacity: 1 !important;
+            background: white !important;
+        }
     </style>    <!-- QRCode library (must be loaded before main script) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </head>
 <body>
-    <!-- QR code overlay -->
-    <div id="qr-overlay" class="hidden" style="position:fixed; bottom:1em; right:1em; background:rgba(255,255,255,0.95); padding:1em; border-radius:0.5em; z-index:1000; border: 2px solid #333;">
-        <div id="qr-code" style="display: flex; flex-direction: column; align-items: center;">
-            <div style="color: #333; font-size: 0.8em; margin-bottom: 0.5em; text-align: center;">Scan to open on your device</div>
-        </div>
-    </div>
-    <!-- TEST: This should appear in the browser to confirm the updated file is being served -->
-    <!-- (REMOVED v2.0 version indicator) -->
-    <a id="source" target="_blank"  class="external-link"></a>
-    <div id="container">
-        <img id="slideshow" src="" alt="Slideshow Image">
-    </div>
-    <div id="controls">
-        <button id = "previous" onclick="slideshow.action('previous')"><i class="fas fa-step-backward"></i></button>
-        <button id="pause" onclick="slideshow.pause()"><i class="fas fa-pause"></i></button>
-        <button id="play" onclick="slideshow.play()" class="hidden"><i class="fas fa-play"></i></button>
-        <button id="next" onclick="slideshow.action('next')"><i class="fas fa-step-forward"></i></button>
-        <div id="speed-select" onclick="slideshow.toggleSpeedDropdown()">1x
-            <div id="speed-dropdown" class="speed-dropdown">
-                <div onclick="slideshow.setSpeed(0.25)">0.25x</div>
-                <div onclick="slideshow.setSpeed(0.5)">0.5x</div>
-                <div onclick="slideshow.setSpeed(1)">1x <i class="fas fa-check"></i></div> <!-- 1x is default -->
-                <div onclick="slideshow.setSpeed(2)">2x</div>
-                <div onclick="slideshow.setSpeed(4)">4x</div>
+    <!-- Begin slideshow wrapper for fullscreen -->
+    <div id="slideshow-wrapper" style="position: relative; width: 100%; height: 100%;">
+        <!-- QR code overlay -->
+        <div id="qr-overlay" class="hidden">
+            <div id="qr-code" style="display: flex; flex-direction: column; align-items: center;"> <!-- QR code container -->
+                <div style="color: #333; font-size: 0.8em; margin-bottom: 0.5em; text-align: center;">Scan to open on your device</div>
             </div>
-
         </div>
-        <button id="fullscreen-toggle" onclick="slideshow.toggleFullscreen()"><i class="fas fa-expand"></i></button>
-        <button id="castButton" is="google-cast-button" style="height:2.5em"></button>
-        <!-- QR code toggle button -->
-        <button id="qr-button" onclick="slideshow.toggleQRCode()" title="Show QR Code"><i class="fas fa-qrcode"></i></button>
-    </div>
+        <!-- TEST: This should appear in the browser to confirm the updated file is being served -->
+        <!-- (REMOVED v2.0 version indicator) -->
+        <a id="source" target="_blank" class="external-link"></a>
+        <div id="container">
+            <img id="slideshow" src="" alt="Slideshow Image">
+        </div>
+        <div id="controls">
+            <button id = "previous" onclick="slideshow.action('previous')"><i class="fas fa-step-backward"></i></button>
+            <button id="pause" onclick="slideshow.pause()"><i class="fas fa-pause"></i></button>
+            <button id="play" onclick="slideshow.play()" class="hidden"><i class="fas fa-play"></i></button>
+            <button id="next" onclick="slideshow.action('next')"><i class="fas fa-step-forward"></i></button>
+            <div id="speed-select" onclick="slideshow.toggleSpeedDropdown()">1x
+                <div id="speed-dropdown" class="speed-dropdown">
+                    <div onclick="slideshow.setSpeed(0.25)">0.25x</div>
+                    <div onclick="slideshow.setSpeed(0.5)">0.5x</div>
+                    <div onclick="slideshow.setSpeed(1)">1x <i class="fas fa-check"></i></div> <!-- 1x is default -->
+                    <div onclick="slideshow.setSpeed(2)">2x</div>
+                    <div onclick="slideshow.setSpeed(4)">4x</div>
+                </div>
+
+            </div>
+            <button id="fullscreen-toggle" onclick="slideshow.toggleFullscreen()"><i class="fas fa-expand"></i></button>
+            <button id="castButton" is="google-cast-button" style="height:2.5em"></button>
+            <!-- QR code toggle button -->
+            <button id="qr-button" onclick="slideshow.toggleQRCode()" title="Show QR Code"><i class="fas fa-qrcode"></i></button>
+        </div>
+    </div> <!-- End slideshow wrapper -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Try to set window.source from config if available
@@ -163,8 +284,7 @@
             if (urlMatch && urlMatch[1]) {
                 window.source = urlMatch[1].trim();
             }
-        }).catch(() => {});
-        class Slideshow{
+        }).catch(() => {});        class Slideshow{
             constructor(ws){
                 this.ws = ws;
                 this.previousEl = document.getElementById('previous');
@@ -178,7 +298,14 @@
                 this.containerEl = document.getElementById('container');
                 this.fullscreenToggleEl = document.getElementById('fullscreen-toggle');
                 this.castButtonEl = document.getElementById('castButton');
+                this.controlsEl = document.getElementById('controls');
 
+                // Fullscreen timer properties
+                this.fullscreenTimer = null;
+                this.isFullscreen = false;
+
+                // QR fade timer properties
+                this.qrTimer = null;
 
                 let faviconLink = document.querySelector('link[rel="icon"]');
                 if (!faviconLink) {
@@ -198,19 +325,29 @@
                 this.previous = this.previous.bind(this);
                 this.setSpeed = this.setSpeed.bind(this);
                 this.toggleSpeedDropdown = this.toggleSpeedDropdown.bind(this);
-                this.closeDropdown = this.closeDropdown.bind(this);
+                this.closeDropdown = this.closeDropdown.bind(this);                this.onFullscreenChange = this.onFullscreenChange.bind(this);
+                this.startFullscreenTimer = this.startFullscreenTimer.bind(this);
+                this.resetFullscreenTimer = this.resetFullscreenTimer.bind(this);
                 this.fadeIn = this.fadeIn.bind(this);
                 this.setUrl = this.setUrl.bind(this);
-                this.toggleFullscreen = this.toggleFullscreen.bind(this);                this.onFullscreenChange = this.onFullscreenChange.bind(this);
+                this.toggleFullscreen = this.toggleFullscreen.bind(this);
                 this.onKeydown = this.onKeydown.bind(this);
                 this.castMedia = this.castMedia.bind(this);
                 this.toggleQRCode = this.toggleQRCode.bind(this);
 
+                // Add event listeners
+                document.addEventListener('fullscreenchange', this.onFullscreenChange);
+                document.addEventListener('webkitfullscreenchange', this.onFullscreenChange);
+                document.addEventListener('mozfullscreenchange', this.onFullscreenChange);
+                document.addEventListener('msfullscreenchange', this.onFullscreenChange);
+                document.addEventListener('keydown', this.onKeydown);
+                
+                // Add mouse move and click listeners to reset timer
+                document.addEventListener('mousemove', this.resetFullscreenTimer);
+                document.addEventListener('click', this.resetFullscreenTimer);
+                document.addEventListener('keydown', this.resetFullscreenTimer);
 
                 this.fullscreenToggleEl.addEventListener('click', this.toggleFullscreen);
-
-                document.addEventListener('fullscreenchange', this.onFullscreenChange);
-                document.addEventListener('keydown', this.onKeydown);
 
                 this.ws.onmessage = this.onmessage.bind(this);
 
@@ -319,17 +456,17 @@
             }
 
             toggleFullscreen() {
-                // Fullscreen the main image container for best effect
-                const container = document.getElementById('container');
+                // Fullscreen the wrapper for both container and controls
+                const wrapper = document.getElementById('slideshow-wrapper');
                 if (!document.fullscreenElement) {
-                    if (container.requestFullscreen) {
-                        container.requestFullscreen();
-                    } else if (container.mozRequestFullScreen) {
-                        container.mozRequestFullScreen();
-                    } else if (container.webkitRequestFullscreen) {
-                        container.webkitRequestFullscreen();
-                    } else if (container.msRequestFullscreen) {
-                        container.msRequestFullscreen();
+                    if (wrapper.requestFullscreen) {
+                        wrapper.requestFullscreen();
+                    } else if (wrapper.mozRequestFullScreen) {
+                        wrapper.mozRequestFullScreen();
+                    } else if (wrapper.webkitRequestFullscreen) {
+                        wrapper.webkitRequestFullscreen();
+                    } else if (wrapper.msRequestFullscreen) {
+                        wrapper.msRequestFullscreen();
                     }
                 } else {
                     if (document.exitFullscreen) {
@@ -342,18 +479,95 @@
                         document.msExitFullscreen();
                     }
                 }
-            }
-            onFullscreenChange() {
-                if (document.fullscreenElement) {
+            }            onFullscreenChange() {
+                // Check multiple fullscreen APIs for better browser compatibility
+                this.isFullscreen = !!(document.fullscreenElement || 
+                                     document.webkitFullscreenElement || 
+                                     document.mozFullScreenElement || 
+                                     document.msFullscreenElement);
+                
+                console.log('Fullscreen changed:', this.isFullscreen); // Debug log
+                
+                if (this.isFullscreen) {
                     this.fullscreenToggleEl.innerHTML = '<i class="fas fa-compress"></i>'; // Change to compress icon when in fullscreen
+                    document.body.classList.add('fullscreen-mode');
+                    console.log('Added fullscreen-mode class'); // Debug log
+                    this.startFullscreenTimer();
+                    // Force controls to be visible initially in fullscreen
+                    this.controlsEl.style.display = 'flex';
+                    this.controlsEl.style.position = 'fixed';
+                    this.controlsEl.style.zIndex = '10000';
+
+                    // Start QR fade timer
+                    this.startQRTimer();
                 } else {
                     this.fullscreenToggleEl.innerHTML = '<i class="fas fa-expand"></i>'; // Change back to expand icon when not in fullscreen
+                    document.body.classList.remove('fullscreen-mode');
+                    console.log('Removed fullscreen-mode class'); // Debug log
+                    this.resetFullscreenTimer();
+                    this.controlsEl.classList.remove('fade-out');
+                    // Reset controls to normal positioning
+                    this.controlsEl.style.display = '';
+                    this.controlsEl.style.position = '';
+                    this.controlsEl.style.zIndex = '';
+
+                    // Clear QR fade timer
+                    if (this.qrTimer) clearTimeout(this.qrTimer);
+                    document.getElementById('qr-overlay').classList.remove('fade-out');
                 }
-            }            onKeydown(event) {
+            }
+
+            startFullscreenTimer() {
+                if (!this.isFullscreen) return;
+                
+                // Clear any existing timer
+                this.resetFullscreenTimer();
+                
+                // Set timer to hide controls after 10 seconds
+                this.fullscreenTimer = setTimeout(() => {
+                    if (this.isFullscreen) {
+                        this.controlsEl.classList.add('fade-out');
+                    }
+                }, 10000);
+            }            resetFullscreenTimer() {
+                // Clear existing timer
+                if (this.fullscreenTimer) {
+                    clearTimeout(this.fullscreenTimer);
+                    this.fullscreenTimer = null;
+                }
+                
+                // Show controls if in fullscreen
+                if (this.isFullscreen) {
+                    this.controlsEl.classList.remove('fade-out');
+                    this.startFullscreenTimer();
+                }
+            }
+
+            startQRTimer() {
+                // Clear existing
+                if (this.qrTimer) clearTimeout(this.qrTimer);
+                this.qrTimer = setTimeout(() => {
+                    document.getElementById('qr-overlay').classList.add('fade-out');
+                }, 10000);
+            }
+
+            resetQRTimer() {
+                // Clear and restart only if in fullscreen
+                if (this.qrTimer) clearTimeout(this.qrTimer);
+                const overlay = document.getElementById('qr-overlay');
+                overlay.classList.remove('fade-out');
+                if (this.isFullscreen) {
+                    this.startQRTimer();
+                }
+            }
+
+            onKeydown(event) {
                 if (event.key === "Escape" && document.fullscreenElement) {
                     document.exitFullscreen();
                 }
-            }            // QR code toggle logic
+            }
+
+            // QR code toggle logic
             toggleQRCode() {
                 const overlay = document.getElementById('qr-overlay');
                 const qrContainer = document.getElementById('qr-code');
@@ -376,10 +590,10 @@
                     if (typeof QRCode === 'undefined') return;
                     new QRCode(qrContainer, {
                         text: albumUrl,
-                        width: 200,
-                        height: 200,
+                        width: 160,    /* 20% smaller */
+                        height: 160,
                         colorDark: '#000000',
-                        colorLight: '#ffffff',
+                        colorLight: '#ffffff', // opaque white background
                         correctLevel: QRCode.CorrectLevel.H
                     });
                 } else {
@@ -391,6 +605,12 @@
         }        let ws = new WebSocket("ws://" + location.hostname + ":6789/");
         let slideshow = new Slideshow(ws);
         window.slideshow = slideshow;
+
+        // Auto-hide source link after 10 seconds
+        setTimeout(() => {
+            const srcEl = document.getElementById('source');
+            if (srcEl) srcEl.style.opacity = '0';
+        }, 10000);
     });
     </script>
 </body>

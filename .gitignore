@@ -5,3 +5,18 @@ venv
 config.yaml
 build/
 *.spec
+worklog.md
+agent_prompts/closeout_instructions.md
+agent_prompts/development_instructions.md
+agent_prompts/documentation_instructions.md
+agent_prompts/general_instructions.md
+agent_prompts/github_issue_agent_instructions.md
+agent_prompts/project_policies_template.md
+agent_prompts/README.md
+agent_prompts/shared_policies.md
+agent_prompts/testing_instructions.md
+agent_prompts/troubleshooting_instructions.md
+workingdirectoryjunk/unnamed (1).png
+workingdirectoryjunk/unnamed (2).png
+workingdirectoryjunk/unnamed (3).png
+workingdirectoryjunk/unnamed.png
